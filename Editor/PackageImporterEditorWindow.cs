@@ -1,13 +1,9 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using UnityEditor;
-using UnityEditor.PackageManager;
-using UnityEditor.PackageManager.UI;
 using UnityEditorInternal;
 using UnityEngine;
+using Yueby.ModalWindow;
 using Yueby.Utils;
 
 namespace Yueby.PackageImporter
@@ -77,7 +73,7 @@ namespace Yueby.PackageImporter
         private void OnAdd(ReorderableList list)
         {
             var packageConfigureDrawer = new PackageConfigureDrawer();
-            ModularEditorWindow.ShowWindow(packageConfigureDrawer, () =>
+            ModalEditorWindow.Show(packageConfigureDrawer, () =>
             {
                 var data = packageConfigureDrawer.Data;
                 if (!string.IsNullOrEmpty(data.Path))
@@ -93,11 +89,13 @@ namespace Yueby.PackageImporter
                     SaveData();
                 }
             });
+
         }
 
         private void OnRemove(ReorderableList list)
         {
             SaveData();
+
         }
 
         private void SaveData()

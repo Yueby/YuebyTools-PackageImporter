@@ -1,22 +1,18 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using Yueby.ModalWindow;
 using Yueby.Utils;
 
 namespace Yueby.PackageImporter
 {
-    public class PackageConfigureDrawer : ModularEditorWindowDrawer<PackageInfo>
+    public class PackageConfigureDrawer : ModalEditorWindowDrawer<PackageInfo>
     {
         public override string Title => "Package Configure";
-        public override Rect Position => new(0, 0, 300, (EditorGUIUtility.singleLineHeight + 2) * 3);
 
         private const string _packagePathKey = "PackageImporter_LastOpenPackagePath";
 
-        public PackageConfigureDrawer()
+        public PackageConfigureDrawer() : base()
         {
             Data = new PackageInfo();
         }

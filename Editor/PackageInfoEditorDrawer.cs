@@ -6,15 +6,20 @@ using Yueby.Utils;
 
 namespace Yueby.PackageImporter
 {
-    public class PackageConfigureDrawer : ModalEditorWindowDrawer<PackageInfo>
+    public class PackageInfoEditorDrawer : ModalEditorWindowDrawer<PackageInfo>
     {
-        public override string Title => "Package Configure";
+        public override string Title => "PackageInfo Editor";
 
         private const string _packagePathKey = "PackageImporter_LastOpenPackagePath";
 
-        public PackageConfigureDrawer() : base()
+        public PackageInfoEditorDrawer()
         {
             Data = new PackageInfo();
+        }
+
+        public PackageInfoEditorDrawer(PackageInfo packageInfo)
+        {
+            Data = packageInfo;
         }
 
         public override void OnDraw()
@@ -23,7 +28,12 @@ namespace Yueby.PackageImporter
 
             EditorUI.HorizontalEGL(() =>
             {
+                EditorGUI.BeginChangeCheck();
                 Data.Path = EditorUI.TextField("Path", Data.Path, labelWidth);
+
+                if (EditorGUI.EndChangeCheck())
+                    Data.Path = Data.Path.Trim();
+                
                 if (GUILayout.Button("Browse"))
                 {
                     var lastOpenPackagePath = EditorPrefs.GetString(_packagePathKey, "Assets");
@@ -31,7 +41,7 @@ namespace Yueby.PackageImporter
                     var result = EditorUtility.OpenFilePanel("Select Package", lastOpenPackagePath, "unitypackage");
                     if (!string.IsNullOrEmpty(result))
                     {
-                        Data.Path = result;
+                        Data.Path = result.Trim();
                         var file = new FileInfo(result);
                         Data.Name = file.Name.Replace(file.Extension, "");
 

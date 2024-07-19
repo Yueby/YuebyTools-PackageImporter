@@ -1,8 +1,8 @@
-using System;
-using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Yueby.ModalWindow;
 using Yueby.Utils;
 
@@ -25,18 +25,15 @@ namespace Yueby.PackageImporter
 
         private void OnEnable()
         {
+            // EditorPrefs.DeleteKey(_key);
             // Debug.Log("OnEnable");
             var packageData = EditorPrefs.GetString(_key);
             _packageImporterData = new PackageImporterData();
             if (!string.IsNullOrEmpty(packageData))
                 JsonUtility.FromJsonOverwrite(packageData, _packageImporterData);
 
-            _reorderableList = new ReorderableListDroppable(_packageImporterData.Packages, typeof(PackageInfo), EditorGUIUtility.singleLineHeight, null, true, true, Repaint)
-            {
-                OnAdd = OnAdd,
-                OnDraw = OnDraw,
-                OnRemove = OnRemove,
-            };
+            _packageImporterData.OnIndexChanged = InitReorderableList;
+            InitReorderableList(0);
         }
 
         private void OnDisable()
@@ -45,36 +42,118 @@ namespace Yueby.PackageImporter
             SaveData();
         }
 
+        private void InitReorderableList(int index)
+        {
+            _reorderableList = new ReorderableListDroppable(_packageImporterData.Current.Packages, typeof(PackageInfo), EditorGUIUtility.singleLineHeight, null, true, true, Repaint)
+            {
+                OnAdd = OnAdd,
+                OnDraw = OnDraw,
+                OnRemove = OnRemove,
+            };
+
+            // Search Package
+            foreach (var package in _packageImporterData.Current.Packages.Where(package => package.IsWeb))
+            {
+                package.ListPackage();
+            }
+        }
+
         private float OnDraw(Rect rect, int index, bool arg3, bool arg4)
         {
             var height = EditorGUIUtility.singleLineHeight;
-            var labelRect = new Rect(rect.x, rect.y, rect.width, height);
-            EditorGUI.LabelField(labelRect, new GUIContent(_packageImporterData.Packages[index].Name), EditorStyles.boldLabel);
+            var currentPackage = _packageImporterData.Current.Packages[index];
+            var isWeb = currentPackage.IsWeb;
 
-            var style = new GUIStyle(EditorStyles.miniLabel);
-            style.normal.textColor = Color.gray;
-            var pathRect = new Rect(rect.x, labelRect.y + height, rect.width - 22, height);
-            EditorGUI.LabelField(pathRect, new GUIContent(_packageImporterData.Packages[index].Path), style);
+            GUI.Box(new Rect(rect.x, rect.y + 2, 45, height), isWeb ? "Web" : "Local", "Badge");
+
+            var labelRect = new Rect(rect.x + 50 + 2, rect.y, rect.width, height);
+            EditorGUI.LabelField(labelRect, new GUIContent(currentPackage.Name), EditorStyles.boldLabel);
+
+            var style = new GUIStyle(EditorStyles.miniLabel)
+            {
+                normal =
+                {
+                    textColor = Color.gray
+                }
+            };
+            var pathRect = new Rect(rect.x, labelRect.y + height + 2, rect.width - 22, height);
+            EditorGUI.LabelField(pathRect, new GUIContent(currentPackage.Path), style);
 
             var descriptionRect = new Rect(rect.x, pathRect.y + height, rect.width - 22, height);
-            EditorGUI.LabelField(descriptionRect, new GUIContent(_packageImporterData.Packages[index].Description));
+            EditorGUI.LabelField(descriptionRect, new GUIContent(currentPackage.Description), EditorStyles.miniLabel);
 
             var result = descriptionRect.y + descriptionRect.height - labelRect.y;
 
-            if (GUI.Button(new Rect(rect.width, rect.y + result / 2 - 10, 20, 20), "●"))
+            // Edit
+            if (GUI.Button(new Rect(rect.width - 61, rect.y + 2, 40, height), "Edit"))
             {
-                ImportPackage(_packageImporterData.Packages[index].Path);
+                var configure = new PackageInfoEditorDrawer(currentPackage);
+                ModalEditorWindow.Show(configure, value =>
+                {
+                    if (!value) return;
+                    _packageImporterData.Current.Packages[index] = configure.Data;
+                    SaveData();
+                });
+                GUIUtility.ExitGUI();
+            }
+
+            // Move
+            if (GUI.Button(new Rect(rect.width - 21, rect.y + 2, 20, height), "▲"))
+            {
+                var transferDrawer = new PackageInfoTransferDrawer(_packageImporterData.GetPackageGroupNames());
+                transferDrawer.Index = _packageImporterData.CurrentIndex;
+                ModalEditorWindow.Show(transferDrawer, () =>
+                {
+                    if (transferDrawer.Index == _packageImporterData.CurrentIndex) return;
+                    _packageImporterData.PackageInfoGroups[transferDrawer.Index].Packages.Add(currentPackage);
+                    _packageImporterData.Current.Packages.Remove(currentPackage);
+                });
+                GUIUtility.ExitGUI();
+            }
+
+
+            var label = isWeb ? currentPackage.IsInPackage ? "-" : "+" : "+";
+
+            if (GUI.Button(new Rect(rect.width, rect.y + 2, 20, height), label))
+            {
+                if (!isWeb)
+                    ImportPackage(currentPackage.Path);
+                else
+                {
+                    if (currentPackage.IsInPackage)
+                    {
+                        ModalEditorWindow.ShowTip("Are you sure to remove this package?", onOk: () =>
+                        {
+                            currentPackage.RemoveFromPackage();
+                            Debug.Log("Removing package: " + currentPackage.Name);
+                        });
+                    }
+                    else
+                    {
+                        ModalEditorWindow.ShowTip("Are you sure to add this package?", onOk: () =>
+                        {
+                            currentPackage.AddInPackage();
+                            Debug.Log("Adding package: " + currentPackage.Name);
+                        });
+                    }
+
+                    GUIUtility.ExitGUI();
+                }
+
                 // Debug.Log("Import" + _packageImporterData.Packages[index].Name);
             }
+
 
             return result;
         }
 
+
         private void OnAdd(ReorderableList list)
         {
-            var packageConfigureDrawer = new PackageConfigureDrawer();
-            ModalEditorWindow.Show(packageConfigureDrawer, () =>
+            var packageConfigureDrawer = new PackageInfoEditorDrawer();
+            ModalEditorWindow.Show(packageConfigureDrawer, value =>
             {
+                if (!value) return;
                 var data = packageConfigureDrawer.Data;
                 if (!string.IsNullOrEmpty(data.Path))
                 {
@@ -89,13 +168,11 @@ namespace Yueby.PackageImporter
                     SaveData();
                 }
             });
-
         }
 
         private void OnRemove(ReorderableList list)
         {
             SaveData();
-
         }
 
         private void SaveData()
@@ -108,26 +185,100 @@ namespace Yueby.PackageImporter
         private void OnGUI()
         {
             EditorUI.DrawEditorTitle("Package Importer");
-            _reorderableList.DoLayoutList("", new Vector2(0, 0), false, false, false);
 
-            _packageImporterData.IsInteractive = EditorUI.Radio(_packageImporterData.IsInteractive, "Interactive");
-            if (GUILayout.Button("Import All", GUILayout.Height(EditorGUIUtility.singleLineHeight * 2)))
+            EditorUI.HorizontalEGL(() =>
             {
-                ImportAllAssets();
-            }
+                EditorGUILayout.LabelField("Group", GUILayout.Width(60));
+                // EditorGUI.BeginChangeCheck();
+                // var index = EditorGUILayout.Popup(_packageImporterData.CurrentIndex, _packageImporterData.GetPackageGroupNames());
+                // if (EditorGUI.EndChangeCheck())
+                // {
+                //     if (index != _packageImporterData.CurrentIndex)
+                //         _packageImporterData.SetCurrent(index);
+                // }
+
+                if (GUILayout.Button(_packageImporterData.Current.Name))
+                {
+                    var groupSelectDrawer = new PackageInfoGroupSelectDrawer(_packageImporterData);
+                    groupSelectDrawer.List.index = _packageImporterData.CurrentIndex;
+                    ModalEditorWindow.Show(groupSelectDrawer, () =>
+                    {
+                        _packageImporterData.SetCurrent(groupSelectDrawer.List.index);
+                        SaveData();
+                    });
+                    GUIUtility.ExitGUI();
+                }
+
+                // if (GUILayout.Button("Edit", GUILayout.Width(40)))
+                // {
+                //     var groupEditorDrawer = new PackageInfoGroupEditorDrawer(_packageImporterData.Current);
+                //     ModalEditorWindow.Show(groupEditorDrawer, () =>
+                //     {
+                //         _packageImporterData.PackageInfoGroups[_packageImporterData.CurrentIndex] = groupEditorDrawer.Data;
+                //         SaveData();
+                //     });
+                //     GUIUtility.ExitGUI();
+                // }
+
+                // if (GUILayout.Button("+", GUILayout.Width(20), GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                // {
+                //     var groupEditorDrawer = new PackageInfoGroupEditorDrawer();
+                //     ModalEditorWindow.Show(groupEditorDrawer, () =>
+                //     {
+                //         _packageImporterData.PackageInfoGroups.Add(groupEditorDrawer.Data);
+                //         _packageImporterData.SetCurrent(_packageImporterData.PackageInfoGroups.Count - 1);
+                //         SaveData();
+                //     });
+                //     GUIUtility.ExitGUI();
+                // }
+                //
+                // EditorGUI.BeginDisabledGroup(_packageImporterData.PackageInfoGroups.Count <= 1);
+                // if (GUILayout.Button("-", GUILayout.Width(20), GUILayout.Height(EditorGUIUtility.singleLineHeight)))
+                // {
+                //     ModalEditorWindow.ShowTip("Are you sure to delete this group?", onOk: () =>
+                //     {
+                //         if (_packageImporterData.PackageInfoGroups.Count <= 1) return;
+                //
+                //         _packageImporterData.PackageInfoGroups.Remove(_packageImporterData.Current);
+                //         _packageImporterData.SetCurrent(_packageImporterData.CurrentIndex - 1);
+                //         SaveData();
+                //     });
+                //     GUIUtility.ExitGUI();
+                // }
+                //
+                // EditorGUI.EndDisabledGroup();
+            });
+
+            // EditorGUILayout.Space();
+            // _packageImporterData.IsInteractive = EditorUI.Radio(_packageImporterData.IsInteractive, "Interactive");
+            // EditorGUILayout.Space();
+
+
+            _reorderableList.DoLayoutList("Packages", new Vector2(0, 0), false, false, false);
+
+
+            // if (GUILayout.Button("Import All", GUILayout.Height(EditorGUIUtility.singleLineHeight * 2)))
+            //     ImportAllAssets();
         }
 
         private void ImportAllAssets()
         {
-            var unityPackages = new string[_packageImporterData.Packages.Count];
-            for (var i = 0; i < _packageImporterData.Packages.Count; i++)
-                unityPackages[i] = _packageImporterData.Packages[i].Path;
+            if (_packageImporterData.Current.Packages.Count == 0)
+            {
+                Debug.Log("No package to import");
+                return;
+            }
+
+            var unityPackages = new string[_packageImporterData.PackageInfoGroups.Count];
+            for (var i = 0; i < _packageImporterData.PackageInfoGroups.Count; i++)
+                unityPackages[i] = _packageImporterData.Current.Packages[i].Path;
 
             for (int i = 0; i < unityPackages.Length; i++)
             {
                 if (unityPackages[i].EndsWith(".unitypackage"))
                 {
-                    AssetDatabase.ImportPackage(unityPackages[i], _packageImporterData.IsInteractive);
+                    // AssetDatabase.ImportPackage(unityPackages[i], _packageImporterData.IsInteractive);
+                    AssetDatabase.ImportPackage(unityPackages[i], true);
                 }
             }
 
@@ -138,46 +289,11 @@ namespace Yueby.PackageImporter
         {
             if (path.EndsWith(".unitypackage"))
             {
-                AssetDatabase.ImportPackage(path, _packageImporterData.IsInteractive);
-                Debug.Log("Package has been imported: " + path);
+                // AssetDatabase.ImportPackage(path, _packageImporterData.IsInteractive);
+                AssetDatabase.ImportPackage(path, true);
+
+                // Debug.Log("Package has been imported: " + path);
             }
-
-        }
-
-    }
-
-    [Serializable]
-    public class PackageInfo
-    {
-        public string Name;
-        public string Path;
-        public string Description;
-
-        public PackageInfo() { }
-
-        public PackageInfo(string name, string path, string description)
-        {
-            Name = name;
-            Path = path;
-            Description = description;
-        }
-
-    }
-
-    [Serializable]
-    public class PackageImporterData
-    {
-        public List<PackageInfo> Packages;
-        public bool IsInteractive;
-
-        public PackageImporterData()
-        {
-            Packages = new List<PackageInfo>();
-        }
-
-        public PackageImporterData(List<PackageInfo> packages)
-        {
-            Packages = packages;
         }
     }
 }

@@ -56,10 +56,10 @@ namespace Yueby.PackageImporter
         {
             EditorGUI.LabelField(rect, Data.PackageInfoGroups[index].Name);
 
-            if (GUI.Button(new Rect(rect.width, rect.y, 20, EditorGUIUtility.singleLineHeight), "•"))
+            if (GUI.Button(new Rect(rect.width - 15, rect.y+2, 40, EditorGUIUtility.singleLineHeight), "Edit"))
             {
                 var groupEditorDrawer = new PackageInfoGroupEditorDrawer(Data.PackageInfoGroups[index]);
-                ModalEditorWindow.Show(groupEditorDrawer, () => { Data.PackageInfoGroups[index] = groupEditorDrawer.Data; });
+                ModalEditorWindow.Show(groupEditorDrawer, () => { Data.PackageInfoGroups[index] = groupEditorDrawer.Data; }, showFocusCenter: true);
                 GUIUtility.ExitGUI();
             }
 

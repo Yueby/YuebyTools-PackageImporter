@@ -17,7 +17,7 @@ namespace Yueby.PackageImporter
         {
             Data = data;
 
-            _position.height = 200;
+            position.height = 200;
             _reorderable = new ReorderableListDroppable(Data.PackageInfoGroups, typeof(PackageInfoGroup), EditorGUIUtility.singleLineHeight, null)
             {
                 OnDraw = DrawList,
@@ -68,7 +68,7 @@ namespace Yueby.PackageImporter
 
         public override void OnDraw()
         {
-            _reorderable.DoLayoutList("", new Vector2(0, _position.height), false, false, false);
+            _reorderable.DoLayoutList("", new Vector2(0, position.height), false, false, false);
         }
     }
 }

@@ -68,7 +68,7 @@ namespace Yueby.PackageImporter
 
         public override void OnDraw()
         {
-            _reorderable.DoLayoutList("", new Vector2(0, position.height), false, false, false);
+            _reorderable.DoLayout("", new Vector2(0, position.height), false, false, false);
         }
     }
 }

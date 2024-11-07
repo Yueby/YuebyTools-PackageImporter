@@ -1,5 +1,5 @@
 {
-  "name": "yueby.tools.package-importer",
+  "name": "yueby.yueby-tools.package-importer",
   "displayName": "Yueby Tools - Package Importer",
   "version": "0.0.7",
   "description": "A tool for importing packages into Unity.",
